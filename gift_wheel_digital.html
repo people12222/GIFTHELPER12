@@ -1,0 +1,206 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.dw-wrap { background: #0d0d1a; border-radius: 16px; padding: 28px 20px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; justify-content: center; min-height: 420px; }
+.dw-left { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.dw-canvas-wrap { position: relative; width: 300px; height: 300px; }
+.dw-canvas-wrap::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(#b36eff, #00f0ff, #ff4fff, #00f0ff, #b36eff); animation: spin-border 4s linear infinite; z-index: 0; }
+.dw-canvas-wrap::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0d0d1a; z-index: 1; transform: scale(0.985); }
+@keyframes spin-border { to { transform: rotate(360deg); } }
+#dwCanvas { position: relative; z-index: 2; border-radius: 50%; }
+.dw-pointer { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); z-index: 10; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 24px solid #ff4fff; filter: drop-shadow(0 0 6px #ff4fff); }
+.dw-result { font-size: 18px; font-weight: 500; color: #00f0ff; text-align: center; min-height: 28px; text-shadow: 0 0 12px #00f0ff; letter-spacing: 1px; }
+.dw-btns { display: flex; gap: 10px; }
+.dw-spin { padding: 10px 28px; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; background: transparent; color: #b36eff; border: 1.5px solid #b36eff; letter-spacing: 1px; text-transform: uppercase; font-family: monospace; transition: background 0.2s; }
+.dw-spin:hover { background: rgba(179,110,255,0.15); }
+.dw-spin:disabled { opacity: 0.4; cursor: default; }
+.dw-save { padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; background: transparent; color: #00f0ff; border: 1.5px solid #00f0ff; letter-spacing: 1px; text-transform: uppercase; font-family: monospace; transition: background 0.2s; }
+.dw-save:hover { background: rgba(0,240,255,0.1); }
+.dw-save:disabled { opacity: 0.3; cursor: default; }
+.dw-right { min-width: 160px; }
+.dw-saved-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #555a7a; margin-bottom: 12px; font-family: monospace; }
+.dw-saved-list { display: flex; flex-direction: column; gap: 8px; }
+.dw-saved-item { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #c8d0ff; font-family: monospace; }
+.dw-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dw-empty { font-size: 12px; color: #3a3f5c; font-family: monospace; }
+</style>
+
+<div class="dw-wrap">
+  <div class="dw-left">
+    <div class="dw-canvas-wrap">
+      <div class="dw-pointer"></div>
+      <canvas id="dwCanvas" width="300" height="300"></canvas>
+    </div>
+    <div class="dw-result" id="dwResult">КРУТИ КОЛЕСО</div>
+    <div class="dw-btns">
+      <button class="dw-spin" id="dwSpin" onclick="dwSpin()">Крутити</button>
+      <button class="dw-save" id="dwSaveBtn" onclick="dwSaveResult()" disabled>Зберегти</button>
+    </div>
+  </div>
+  <div class="dw-right">
+    <div class="dw-saved-title">// збережено</div>
+    <div class="dw-saved-list" id="dwSavedList">
+      <div class="dw-empty">_ очікую вибір...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DW = {
+  segments: [
+    { label: "Естетика",  color: "#b36eff", glow: "#b36eff" },
+    { label: "Догляд",    color: "#00f0ff", glow: "#00f0ff" },
+    { label: "Діджитал",  color: "#ff4fff", glow: "#ff4fff" },
+    { label: "Хобі",      color: "#ffe156", glow: "#ffe156" },
+    { label: "Спорт",     color: "#00ffb0", glow: "#00ffb0" },
+    { label: "Для кухні", color: "#ff9a3c", glow: "#ff9a3c" },
+    { label: "Приколи",   color: "#ff5c7a", glow: "#ff5c7a" },
+  ],
+  angle: 0,
+  spinning: false,
+  lastResult: null,
+  saved: [],
+};
+
+const canvas = document.getElementById('dwCanvas');
+const ctx = canvas.getContext('2d');
+const cx = 150, cy = 150, r = 142;
+
+function hexToRgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+function drawWheel(angle) {
+  ctx.clearRect(0, 0, 300, 300);
+  const n = DW.segments.length;
+  const arc = (2 * Math.PI) / n;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctx.fillStyle = '#10102a';
+  ctx.fill();
+
+  for (let i = 0; i < n; i++) {
+    const start = angle + i * arc;
+    const end = start + arc;
+    const seg = DW.segments[i];
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r - 2, start, end);
+    ctx.closePath();
+    ctx.fillStyle = hexToRgba(seg.color, 0.13);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r - 2, start, end);
+    ctx.closePath();
+    ctx.strokeStyle = seg.color;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = seg.glow;
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + arc / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = seg.color;
+    ctx.shadowColor = seg.glow;
+    ctx.shadowBlur = 10;
+    ctx.font = '500 12px monospace';
+    ctx.fillText(seg.label, r - 12, 4);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    const lx = cx + (r - 2) * Math.cos(end);
+    const ly = cy + (r - 2) * Math.sin(end);
+    ctx.lineTo(lx, ly);
+    ctx.strokeStyle = hexToRgba(seg.color, 0.3);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 20, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0d0d1a';
+  ctx.fill();
+  ctx.strokeStyle = '#00f0ff';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#00f0ff';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#00f0ff';
+  ctx.font = '500 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GO', cx, cy);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function getWinner(angle) {
+  const n = DW.segments.length;
+  const arc = (2 * Math.PI) / n;
+  const norm = ((-angle - Math.PI / 2) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  return DW.segments[Math.floor(norm / arc) % n];
+}
+
+function dwSpin() {
+  if (DW.spinning) return;
+  DW.spinning = true;
+  DW.lastResult = null;
+  document.getElementById('dwResult').textContent = '...';
+  document.getElementById('dwSaveBtn').disabled = true;
+  document.getElementById('dwSpin').disabled = true;
+
+  const spins = (6 + Math.random() * 6) * 2 * Math.PI;
+  const duration = 3500 + Math.random() * 1200;
+  const start = performance.now();
+  const startAngle = DW.angle;
+
+  function ease(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    DW.angle = startAngle + spins * ease(t);
+    drawWheel(DW.angle);
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      DW.spinning = false;
+      const w = getWinner(DW.angle);
+      DW.lastResult = w;
+      const el = document.getElementById('dwResult');
+      el.textContent = w.label.toUpperCase();
+      el.style.color = w.color;
+      el.style.textShadow = `0 0 16px ${w.glow}`;
+      document.getElementById('dwSaveBtn').disabled = false;
+      document.getElementById('dwSpin').disabled = false;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function dwSaveResult() {
+  if (!DW.lastResult) return;
+  DW.saved.push(DW.lastResult);
+  const list = document.getElementById('dwSavedList');
+  list.innerHTML = DW.saved.map((s, i) =>
+    `<div class="dw-saved-item">
+      <div class="dw-dot" style="background:${s.color};box-shadow:0 0 6px ${s.color};"></div>
+      <span>${s.label}</span>
+      <span style="margin-left:auto;color:#3a3f5c;font-size:11px;">#${i+1}</span>
+    </div>`
+  ).join('');
+  document.getElementById('dwSaveBtn').disabled = true;
+}
+
+drawWheel(DW.angle);
+</script>
